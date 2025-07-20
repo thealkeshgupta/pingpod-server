@@ -19,4 +19,6 @@ public interface ChatRoomService {
     ChatRoomDTO joinChatRoom(Long chatRoomId, User user);
 
     void deleteChatRoom(User user, Long chatRoomId);
+
+    boolean isMemberOfRoom(User user, Long chatRoomId);
 }
