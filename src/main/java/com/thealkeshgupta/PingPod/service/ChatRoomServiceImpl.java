@@ -206,4 +206,15 @@ public class ChatRoomServiceImpl implements ChatRoomService {
         chatRoomRepository.deleteById(chatRoomId);
     }
 
+    @Override
+    public boolean isMemberOfRoom(User user, Long chatRoomId) {
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "roomId", chatRoomId));
+
+        boolean isMember = chatRoom.getMembers().stream()
+                .anyMatch(member -> user.getUserId().equals(member.getMember().getUserId()));
+
+        return isMember;
+    }
+
 }
