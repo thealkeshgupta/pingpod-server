@@ -21,4 +21,10 @@ public interface ChatRoomService {
     void deleteChatRoom(User user, Long chatRoomId);
 
     boolean isMemberOfRoom(User user, Long chatRoomId);
+
+    ChatRoomDTO toggleAdmin(User loggedInUser, Long chatRoomId, Long userId);
+
+    void exitChatRoom(Long chatRoomId, User user);
+
+    ChatRoomDTO removeUser(User loggedInUser, Long chatRoomId, Long userId);
 }
