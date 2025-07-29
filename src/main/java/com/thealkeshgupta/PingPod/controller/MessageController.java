@@ -9,7 +9,10 @@ import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 
 @RestController
@@ -21,6 +24,9 @@ public class MessageController {
 
     @Autowired
     private AuthUtil authUtil;
+
+    @Autowired
+    private SimpMessagingTemplate messagingTemplate;
 
     @PostMapping("/send/{chatRoomId}")
     public ResponseEntity<?> sendMessage(@Valid @RequestBody MessageDTO messageDTO, @PathVariable Long chatRoomId) {
@@ -41,6 +47,16 @@ public class MessageController {
         User user = authUtil.loggedInUser();
         messageService.deleteMessage(user, messageId);
         return new ResponseEntity<>("Message deleted successfully", HttpStatus.OK);
+    }
+
+
+    @DeleteMapping("/bulk/{roomId}")
+    public ResponseEntity<?> deleteBulkMessage(@PathVariable Long roomId, @RequestBody List<Long> toBeDeletedIDs) {
+        User user = authUtil.loggedInUser();
+        messageService.deleteBulkMessages(toBeDeletedIDs);
+        messagingTemplate.convertAndSend(
+                "/topic/room/" + roomId + "/messages-deleted", toBeDeletedIDs);
+        return new ResponseEntity<>("Message(s) deleted successfully", HttpStatus.OK);
     }
 
 }

@@ -10,6 +10,8 @@ import com.thealkeshgupta.PingPod.payload.ChatRoomMemberDTO;
 import com.thealkeshgupta.PingPod.payload.UserDTO;
 import com.thealkeshgupta.PingPod.repository.ChatRoomMemberRepository;
 import com.thealkeshgupta.PingPod.repository.ChatRoomRepository;
+import com.thealkeshgupta.PingPod.repository.UserRepository;
+import com.thealkeshgupta.PingPod.util.GenerateRoomId;
 import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,9 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -32,15 +32,26 @@ public class ChatRoomServiceImpl implements ChatRoomService {
     @Autowired
     private ChatRoomMemberRepository chatRoomMemberRepository;
 
+
+    @Autowired
+    private UserRepository userRepository;
+
     @Autowired
     private ModelMapper modelMapper;
+
+    @Autowired
+    private GenerateRoomId generateRoomId;
 
     @Override
     public ChatRoomDTO createRoom(User owner, String name) {
 
-        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy"));
 
         ChatRoom chatRoom = new ChatRoom();
+
+        Long uniqueRoomId = generateRoomId.generateUniqueRoomId();
+        chatRoom.setRoomId(uniqueRoomId);
+
+        String today = LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy"));
 
         chatRoom.setName(name);
         chatRoom.setOwner(owner);
@@ -161,7 +172,12 @@ public class ChatRoomServiceImpl implements ChatRoomService {
         ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
                 .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "roomId", chatRoomId));
 
+        boolean isMember = chatRoom.getMembers().stream()
+                .anyMatch(member -> user.getUserId().equals(member.getMember().getUserId()));
 
+        if (isMember) {
+            throw new APIException("Already a member of this room");
+        }
         String today = LocalDate.now().format(DateTimeFormatter.ofPattern("dd MMM yyyy"));
 
         ChatRoomMember newMember = new ChatRoomMember();
@@ -215,6 +231,117 @@ public class ChatRoomServiceImpl implements ChatRoomService {
                 .anyMatch(member -> user.getUserId().equals(member.getMember().getUserId()));
 
         return isMember;
+    }
+
+    @Override
+    public ChatRoomDTO toggleAdmin(User loggedInUser, Long chatRoomId, Long userId) {
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "roomId", chatRoomId));
+
+        ChatRoomMember loggedInMember = chatRoomMemberRepository.findByChatRoomRoomIdAndMemberUserId(chatRoomId, loggedInUser.getUserId())
+                .orElseThrow(() -> new APIException("User is not part of this room"));
+
+        if (!loggedInMember.isAdmin()) {
+            throw new APIException("Only Room Owner/Admins can perform this action");
+        }
+
+        User user = userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User", "userId", userId));
+
+        ChatRoomMember targetUser = chatRoomMemberRepository.findByChatRoomRoomIdAndMemberUserId(chatRoomId, userId)
+                .orElseThrow(() -> new APIException("User is not a member of this room"));
+
+        targetUser.setAdmin(!targetUser.isAdmin());
+
+        chatRoomMemberRepository.save(targetUser);
+
+        Set<ChatRoomMemberDTO> members = chatRoom.getMembers().stream().map(member -> {
+            ChatRoomMemberDTO dto = new ChatRoomMemberDTO();
+            dto.setId(member.getMemberId());
+            dto.setRoomId(member.getChatRoom().getRoomId());
+            dto.setJoinedAt(member.getJoinedAt());
+            dto.setAdmin(member.isAdmin());
+            dto.setUser(modelMapper.map(member.getMember(), UserDTO.class));
+            return dto;
+        }).collect(Collectors.toSet());
+
+        ChatRoomDTO savedChatRoomDTO = new ChatRoomDTO();
+        savedChatRoomDTO.setRoomId(chatRoom.getRoomId());
+        savedChatRoomDTO.setName(chatRoom.getName());
+        savedChatRoomDTO.setCreatedAt(chatRoom.getCreatedAt());
+        savedChatRoomDTO.setOwner(modelMapper.map(chatRoom.getOwner(), UserDTO.class));
+        savedChatRoomDTO.setMembers(members);
+        return savedChatRoomDTO;
+    }
+
+    @Override
+    public void exitChatRoom(Long chatRoomId, User user) {
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "roomId", chatRoomId));
+
+        boolean isMember = chatRoom.getMembers().stream()
+                .anyMatch(member -> user.getUserId().equals(member.getMember().getUserId()));
+
+        boolean isOwner = chatRoom.getOwner().getUserId().equals(user.getUserId());
+
+        if (isOwner) {
+            throw new APIException("Room Owners cannot exit their owned room");
+        }
+
+        if (!isMember) {
+            throw new APIException("Not a member of this room");
+        }
+
+        chatRoom.getMembers().removeIf(member -> member.getMember().getUserId().equals(user.getUserId()));
+
+        ChatRoom savedChatRoom = chatRoomRepository.save(chatRoom);
+
+    }
+
+    @Override
+    @Transactional
+    public ChatRoomDTO removeUser(User loggedInUser, Long chatRoomId, Long userId) {
+        ChatRoom chatRoom = chatRoomRepository.findById(chatRoomId)
+                .orElseThrow(() -> new ResourceNotFoundException("ChatRoom", "roomId", chatRoomId));
+
+        ChatRoomMember loggedInMember = chatRoomMemberRepository.findByChatRoomRoomIdAndMemberUserId(chatRoomId, loggedInUser.getUserId())
+                .orElseThrow(() -> new APIException("User is not part of this room"));
+
+        if (!loggedInMember.isAdmin()) {
+            throw new APIException("Only Room Owner/Admins can perform this action");
+        }
+
+        User user = userRepository.findById(userId).orElseThrow(() -> new ResourceNotFoundException("User", "userId", userId));
+
+        if (chatRoom.getOwner().getUserId().equals(userId)) {
+            throw new APIException("Room Owner cannot be removed");
+        }
+
+        ChatRoomMember targetUser = chatRoomMemberRepository.findByChatRoomRoomIdAndMemberUserId(chatRoomId, userId)
+                .orElseThrow(() -> new APIException("User is not a member of this room"));
+
+
+        chatRoom.getMembers().remove(targetUser);
+
+        System.out.println("deleting... " + targetUser.getMemberId());
+        chatRoomMemberRepository.deleteByMemberId(targetUser.getMemberId());
+
+        Set<ChatRoomMemberDTO> members = chatRoom.getMembers().stream().map(member -> {
+            ChatRoomMemberDTO dto = new ChatRoomMemberDTO();
+            dto.setId(member.getMemberId());
+            dto.setRoomId(member.getChatRoom().getRoomId());
+            dto.setJoinedAt(member.getJoinedAt());
+            dto.setAdmin(member.isAdmin());
+            dto.setUser(modelMapper.map(member.getMember(), UserDTO.class));
+            return dto;
+        }).collect(Collectors.toSet());
+
+        ChatRoomDTO savedChatRoomDTO = new ChatRoomDTO();
+        savedChatRoomDTO.setRoomId(chatRoom.getRoomId());
+        savedChatRoomDTO.setName(chatRoom.getName());
+        savedChatRoomDTO.setCreatedAt(chatRoom.getCreatedAt());
+        savedChatRoomDTO.setOwner(modelMapper.map(chatRoom.getOwner(), UserDTO.class));
+        savedChatRoomDTO.setMembers(members);
+        return savedChatRoomDTO;
     }
 
 }

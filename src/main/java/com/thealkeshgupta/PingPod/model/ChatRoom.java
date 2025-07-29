@@ -16,7 +16,6 @@ import java.util.Set;
 @Table(name = "chat_rooms")
 public class ChatRoom {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "room_id")
     @EqualsAndHashCode.Include
     private Long roomId;
@@ -34,6 +33,6 @@ public class ChatRoom {
 
     @Getter
     @Setter
-    @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true)
+    @OneToMany(mappedBy = "chatRoom", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
     private Set<ChatRoomMember> members = new HashSet<>();
 }
