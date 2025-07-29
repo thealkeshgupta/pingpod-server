@@ -9,6 +9,7 @@ import com.thealkeshgupta.PingPod.payload.MessageDTO;
 import com.thealkeshgupta.PingPod.repository.ChatRoomRepository;
 import com.thealkeshgupta.PingPod.repository.MessageRepository;
 import com.thealkeshgupta.PingPod.repository.MessageResponse;
+import jakarta.transaction.Transactional;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -68,7 +69,7 @@ public class MessageServiceImpl implements MessageService {
 
         Sort sortByAndOrder = Sort.by("timestamp").descending();
 
-        Pageable pageDetails = PageRequest.of(pageNumber, 10, sortByAndOrder);
+        Pageable pageDetails = PageRequest.of(pageNumber, 20, sortByAndOrder);
 
         Page<Message> messagesPage = messageRepository.findByChatRoom(chatRoom, pageDetails);
 
@@ -100,6 +101,12 @@ public class MessageServiceImpl implements MessageService {
         }
 
         messageRepository.deleteById(messageId);
+    }
+
+    @Override
+    @Transactional
+    public void deleteBulkMessages(List<Long> toBeDeletedIDs) {
+        messageRepository.deleteAllByIdIn(toBeDeletedIDs);
     }
 
 }

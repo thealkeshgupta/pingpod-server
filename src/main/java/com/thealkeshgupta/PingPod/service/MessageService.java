@@ -13,4 +13,6 @@ public interface MessageService {
     MessageResponse getMessages(User user, Long chatRoomId, Integer pageNumber);
 
     void deleteMessage(User user, Long messageId);
+
+    void deleteBulkMessages(List<Long> toBeDeletedIDs);
 }

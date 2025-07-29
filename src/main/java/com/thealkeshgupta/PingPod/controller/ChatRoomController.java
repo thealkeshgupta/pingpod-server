@@ -56,6 +56,28 @@ public class ChatRoomController {
         return new ResponseEntity<>(room, HttpStatus.OK);
     }
 
+    @PostMapping("/exit/{chatRoomId}")
+    public ResponseEntity<?> exitChatRoom(@PathVariable Long chatRoomId) {
+        User user = authUtil.loggedInUser();
+        chatRoomService.exitChatRoom(chatRoomId, user);
+        return new ResponseEntity<>("Room exited successfully", HttpStatus.OK);
+    }
+
+    @DeleteMapping("/remove-user/{chatRoomId}/{userId}")
+    public ResponseEntity<?> removeUser(@PathVariable Long chatRoomId, @PathVariable Long userId) {
+        User loggedInUser = authUtil.loggedInUser();
+        ChatRoomDTO room = chatRoomService.removeUser(loggedInUser, chatRoomId, userId);
+        return new ResponseEntity<>(room, HttpStatus.OK);
+    }
+
+
+    @PostMapping("/toggle-admin/{chatRoomId}/{userId}")
+    public ResponseEntity<?> toggleAdmin(@PathVariable Long chatRoomId, @PathVariable Long userId) {
+        User loggedInUser = authUtil.loggedInUser();
+        ChatRoomDTO room = chatRoomService.toggleAdmin(loggedInUser, chatRoomId, userId);
+        return new ResponseEntity<>(room, HttpStatus.OK);
+    }
+
     @DeleteMapping("/{chatRoomId}")
     public ResponseEntity<?> deleteChatRoom(@PathVariable Long chatRoomId) {
         User user = authUtil.loggedInUser();
